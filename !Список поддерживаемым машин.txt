@@ -1,0 +1,18 @@
+В данный список внесены только проверенные машины, реальный список намного больше, и надеюсь, вы поможете его расширить.
+Должны работать через ELM327 все машины, чьи двигатели поддерживают протоколы:
+1: "SAE J1850 PWM 41.6 kbit/s";
+2: "SAE J1850 VPW 10.4 kbit/s";
+3: "ISO 9141-2";
+4: "ISO 14230-4 KWP slow init";
+5: "ISO 14230-4 KWP fast init";
+6: "ISO 15765-4 CAN 11 bit 500 kbit/s";
+7: "ISO 15765-4 CAN 29 bit 500 kbit/s";
+8: "ISO 15765-4 CAN 11 bit 250 kbit/s";
+9: "ISO 15765-4 CAN 29 bit 250 kbit/s";
+
+Проверенные машины:
+Renault Sandero 2G 2015 ELM и CAN
+Renault Logan 2G 2018 ELM и CAN
+Renault Duster 1G 2017 ELM
+Lada Vesta 1G 2019 CAN
+Mitsubishi Outlander 2004 ELM
