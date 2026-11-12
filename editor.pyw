@@ -481,6 +481,357 @@ class LvglBinImage:
 
 
 class DialEditor(tk.Tk):
+    def _draw_status_preview_icons(self):
+        """
+        Рисует системные индикаторы только на preview.
+
+        Они не являются объектами скина, не попадают в JSON,
+        не участвуют в выделении и проверке круглой области.
+        """
+        # False: обычные платы, смещения X = -10 и +10.
+        # True: ESPS3_1_43, смещения X = -40 и -20.
+        esps3_1_43 = False
+
+        if esps3_1_43:
+            connection_offset_x = -40
+            navigation_offset_x = -20
+        else:
+            connection_offset_x = -10
+            navigation_offset_x = 10
+
+        status_y = 0
+
+        # LV_SIZE_CONTENT оставляет объект размером 24x24.
+        object_width = 24
+        object_height = 24
+
+        # Масштаб изображения 128/256 = 50%.
+        image_width = 12
+        image_height = 12
+
+        # При стандартном pivot в центре картинка уменьшается
+        # внутри объекта: отступы слева и сверху по 6 пикселей.
+        inset_x = (object_width - image_width) // 2
+        inset_y = (object_height - image_height) // 2
+
+        # Аналог LV_ALIGN_TOP_MID для объекта шириной 24.
+        object_base_x = (SCREEN_WIDTH - object_width) // 2
+
+        images = self._get_status_preview_images()
+
+        for name, offset_x in (
+            ("connection", connection_offset_x),
+            ("navigation", navigation_offset_x)
+        ):
+            image_x = object_base_x + offset_x + inset_x
+            image_y = status_y + inset_y
+
+            self.canvas.create_image(
+                image_x,
+                image_y,
+                image=images[name],
+                anchor=tk.NW,
+                tags=(
+                    "status_preview_overlay",
+                    "status_preview_" + name
+                )
+            )
+
+        # Выше всех объектов, сетки и рамки выделения.
+        self.canvas.tag_raise("status_preview_overlay")
+    def _get_status_preview_images(self):
+        """
+        Встроенные иконки Chronos и навигационных пакетов.
+
+        Исходный размер: 24x24.
+        Размер на preview: 12x12.
+
+        Данные — альфа-каналы исходных белых иконок.
+        PNG создаётся в памяти, без внешних файлов и Pillow.
+        """
+        cached = self.__dict__.get("_status_preview_images")
+        if cached is not None:
+            return cached
+
+        import base64
+        import struct
+        import zlib
+
+        # Каждая строка содержит 48 байт:
+        # две последовательные строки исходной иконки 24x24.
+        connection_alpha_rows = (
+            """
+            00 00 00 00 00 00 00 35 9f de f0 df a1 37 00 00
+            00 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 00 00 00 00 03 8c fe ff ff
+            ff ff ff ff fe 90 04 00
+            """,
+            """
+            00 00 00 00 00 02 a1 ff ff ff ff ff ff ff ff ff
+            ff ff 92 00 00 00 00 00
+            00 00 00 00 00 00 00 00 00 00 01 9c ff ff ff f8
+            88 50 6f e3 ff ff ff 3a
+            """,
+            """
+            00 00 00 00 01 97 ff ff ff ef 36 00 00 00 12 e3
+            ff ff a5 00 00 00 00 00
+            00 00 00 01 93 ff ff ff f1 37 00 00 00 00 00 6f
+            ff ff e2 00 00 00 00 00
+            """,
+            """
+            00 00 00 00 76 ff ff ff f3 3b 00 00 00 00 00 00
+            4d ff ff f8 00 00 00 00
+            00 00 00 26 fb ff ff f6 40 00 00 00 00 00 00 83
+            ff ff e4 00 00 00 00 00
+            """,
+            """
+            00 00 00 90 ff ff fc 4a 09 b3 98 04 00 00 00 29
+            f4 ff ff a8 00 00 00 00
+            00 00 00 00 0c 7c 00 cd ff ff 98 00 9b ff ff 8f
+            00 00 24 e4 ff ff ff 3e
+            """,
+            """
+            00 00 00 0b c1 a8 00 e1 ff ff 5d 05 d8 ff ff fd
+            33 01 e0 ff ff ff 9b 00
+            00 00 09 bd ff af 00 d2 ff ff 75 00 12 e1 ff ff
+            9a 00 e3 ff ff b5 06 00
+            """,
+            """
+            00 08 b9 ff ff de 00 99 ff ff dd 0e 00 79 ff ff
+            d0 00 b5 ff b9 08 00 00
+            00 a1 ff ff ff db 00 34 ff ff ff d1 02 64 ff ff
+            e0 00 af bd 09 00 00 00
+            """,
+            """
+            44 ff ff ff e2 21 00 00 95 ff ff 85 00 a5 ff ff
+            cb 00 81 0b 00 00 00 00
+            ad ff ff f1 25 00 00 00 06 9e a6 03 52 fe ff ff
+            8d 00 00 00 00 00 00 00
+            """,
+            """
+            e8 ff ff 79 00 00 00 00 00 00 00 44 f8 ff ff f8
+            25 00 00 00 00 00 00 00
+            fa ff ff 44 00 00 00 00 00 00 3f f4 ff ff ff 6a
+            00 00 00 00 00 00 00 00
+            """,
+            """
+            e6 ff ff 65 00 00 00 00 00 3b f3 ff ff ff 88 00
+            00 00 00 00 00 00 00 00
+            a8 ff ff de 0f 00 00 00 3b f1 ff ff ff 96 01 00
+            00 00 00 00 00 00 00 00
+            """,
+            """
+            3d ff ff ff e1 71 55 91 fa ff ff ff 9a 01 00 00
+            00 00 00 00 00 00 00 00
+            00 98 ff ff ff ff ff ff ff ff ff 9d 02 00 00 00
+            00 00 00 00 00 00 00 00
+            """,
+            """
+            00 05 97 ff ff ff ff ff ff fd 85 02 00 00 00 00
+            00 00 00 00 00 00 00 00
+            00 00 00 3b a3 de ef db 9b 2f 00 00 00 00 00 00
+            00 00 00 00 00 00 00 00
+            """
+        )
+
+        navigation_alpha_rows = (
+            """
+            00 00 00 00 00 00 00 00 00 00 01 2a 10 00 00 00
+            00 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+            00 00 19 79 dc ff e7 10
+            """,
+            """
+            00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03
+            4a af fb ff ff ff ff 29
+            00 00 00 00 00 00 00 00 00 00 00 00 00 1a 77 df
+            ff ff ff ff ff ff dd 02
+            """,
+            """
+            00 00 00 00 00 00 00 00 00 00 03 44 aa fb ff ff
+            ff ff ff ff ff ff 78 00
+            00 00 00 00 00 00 00 00 24 80 e2 ff ff ff ff ff
+            ff ff ff ff ff fb 1a 00
+            """,
+            """
+            00 00 00 00 00 07 55 bb fe ff ff ff ff ff ff ff
+            ff ff ff ff ff ae 00 00
+            00 00 00 28 88 ea ff ff ff ff ff ff ff ff ff ff
+            ff ff ff ff ff 49 00 00
+            """,
+            """
+            00 52 c5 ff ff ff ff ff ff ff ff ff ff ff ff ff
+            ff ff ff ff e2 03 00 00
+            21 fe ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+            ff ff ff ff 80 00 00 00
+            """,
+            """
+            17 f9 ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+            ff ff ff fc 1e 00 00 00
+            00 31 8a cf fe ff ff ff ff ff ff ff ff ff ff ff
+            ff ff ff b6 00 00 00 00
+            """,
+            """
+            00 00 00 00 15 55 99 e1 ff ff ff ff ff ff ff ff
+            ff ff ff 51 00 00 00 00
+            00 00 00 00 00 00 00 00 2a 6f da ff ff ff ff ff
+            ff ff e7 05 00 00 00 00
+            """,
+            """
+            00 00 00 00 00 00 00 00 00 00 6f ff ff ff ff ff
+            ff ff 87 00 00 00 00 00
+            00 00 00 00 00 00 00 00 00 00 2a ff ff ff ff ff
+            ff fe 25 00 00 00 00 00
+            """,
+            """
+            00 00 00 00 00 00 00 00 00 00 00 e3 ff ff ff ff
+            ff bd 00 00 00 00 00 00
+            00 00 00 00 00 00 00 00 00 00 00 9f ff ff ff ff
+            ff 59 00 00 00 00 00 00
+            """,
+            """
+            00 00 00 00 00 00 00 00 00 00 00 5a ff ff ff ff
+            ec 08 00 00 00 00 00 00
+            00 00 00 00 00 00 00 00 00 00 00 16 fe ff ff ff
+            8f 00 00 00 00 00 00 00
+            """,
+            """
+            00 00 00 00 00 00 00 00 00 00 00 00 d0 ff ff ff
+            2b 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 00 00 00 00 00 8b ff ff c5
+            00 00 00 00 00 00 00 00
+            """,
+            """
+            00 00 00 00 00 00 00 00 00 00 00 00 31 f8 fe 50
+            00 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 00 00 00 00 00 00 16 1e 00
+            00 00 00 00 00 00 00 00
+            """
+        )
+
+        source_width = 24
+        source_height = 24
+        target_width = 12
+        target_height = 12
+
+        def decode_alpha(name, rows):
+            blocks = []
+
+            for index, text in enumerate(rows):
+                # Разбираем строго отдельные двухзначные hex-байты.
+                tokens = text.split()
+
+                if len(tokens) != 48:
+                    raise ValueError(
+                        "{}: блок {} должен содержать 48 байт, "
+                        "получено {}.".format(
+                            name, index + 1, len(tokens)
+                        )
+                    )
+
+                for token in tokens:
+                    if not re.fullmatch(r"[0-9a-fA-F]{2}", token):
+                        raise ValueError(
+                            "{}: неверный байт {!r} в блоке {}.".format(
+                                name, token, index + 1
+                            )
+                        )
+
+                blocks.append(bytes(int(token, 16) for token in tokens))
+
+            alpha = b"".join(blocks)
+            expected = source_width * source_height
+
+            if len(alpha) != expected:
+                raise ValueError(
+                    "{}: ожидалось {} байт, получено {}.".format(
+                        name, expected, len(alpha)
+                    )
+                )
+
+            return alpha
+
+        def make_png_chunk(chunk_type, payload):
+            checksum = zlib.crc32(chunk_type + payload) & 0xFFFFFFFF
+
+            return (
+                struct.pack(">I", len(payload))
+                + chunk_type
+                + payload
+                + struct.pack(">I", checksum)
+            )
+
+        def make_photo(alpha):
+            scanlines = bytearray()
+
+            for y in range(target_height):
+                # PNG filter: None.
+                scanlines.append(0)
+
+                for x in range(target_width):
+                    source_x = x * 2
+                    source_y = y * 2
+                    offset = source_y * source_width + source_x
+
+                    # Усреднение альфа-канала блока 2x2.
+                    averaged_alpha = (
+                        alpha[offset]
+                        + alpha[offset + 1]
+                        + alpha[offset + source_width]
+                        + alpha[offset + source_width + 1]
+                        + 2
+                    ) // 4
+
+                    # Белый RGB с исходной прозрачностью.
+                    scanlines.extend(
+                        (255, 255, 255, averaged_alpha)
+                    )
+
+            header = struct.pack(
+                ">IIBBBBB",
+                target_width,
+                target_height,
+                8,  # Глубина цвета.
+                6,  # RGBA.
+                0,  # Сжатие.
+                0,  # Фильтрация.
+                0   # Без interlace.
+            )
+
+            png = (
+                b"\x89PNG\r\n\x1a\n"
+                + make_png_chunk(b"IHDR", header)
+                + make_png_chunk(
+                    b"IDAT",
+                    zlib.compress(bytes(scanlines))
+                )
+                + make_png_chunk(b"IEND", b"")
+            )
+
+            return tk.PhotoImage(
+                master=self,
+                data=base64.b64encode(png).decode("ascii"),
+                format="png"
+            )
+
+        connection_alpha = decode_alpha(
+            "Chronos", connection_alpha_rows
+        )
+        navigation_alpha = decode_alpha(
+            "Навигационные пакеты", navigation_alpha_rows
+        )
+
+        images = {
+            "connection": make_photo(connection_alpha),
+            "navigation": make_photo(navigation_alpha)
+        }
+
+        # Отдельные ссылки сохраняют PhotoImage при очистке
+        # self.preview_images в draw_preview().
+        self._status_preview_images = images
+
+        return images
+
     def __init__(self):
         super().__init__()
 
@@ -1932,21 +2283,25 @@ class DialEditor(tk.Tk):
             0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
             fill="#000000", outline=""
         )
+
         self.canvas.create_oval(
             0, 0, ROUND_AREA_WIDTH, ROUND_AREA_HEIGHT,
             fill="#101010", outline="#FF0000", width=1
         )
+
         if not self.disable_grid_var.get():
             for x in range(0, SCREEN_WIDTH + 1, 20):
                 self.canvas.create_line(
                     x, 0, x, SCREEN_HEIGHT,
                     fill="#FFFF00", tags=("preview_grid",)
                 )
+
             for y in range(0, SCREEN_HEIGHT + 1, 20):
                 self.canvas.create_line(
                     0, y, SCREEN_WIDTH, y,
                     fill="#FFFF00", tags=("preview_grid",)
                 )
+
         self.canvas.create_line(
             0, ROUND_AREA_HEIGHT, SCREEN_WIDTH, ROUND_AREA_HEIGHT,
             fill="#555555", dash=(3, 3)
@@ -1958,15 +2313,21 @@ class DialEditor(tk.Tk):
             self.draw_element(index, element)
 
         canpar = self.data.get("canpar", {})
+
         for name in CANPAR_NAMES:
             if name in canpar:
                 self.draw_canpar(name, canpar[name])
+
         for name, obj in canpar.items():
             if name not in CANPAR_NAMES:
                 self.draw_canpar(name, obj)
 
         self.canvas.tag_raise("selection")
 
+        # Системные индикаторы рисуются последними:
+        # поверх объектов и рамки выделения.
+        # self.data при этом не изменяется.
+        self._draw_status_preview_icons()
     def draw_canpar(self, name, obj):
         if not isinstance(obj, dict):
             return
